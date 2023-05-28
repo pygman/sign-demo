@@ -5,11 +5,15 @@ import { ethers } from 'ethers';
 import { ManagerType } from './generated/Manager';
 import { PriceResult, RandomResult } from './types';
 import * as process from 'process';
+import { InjectRedis } from '@liaoliaots/nestjs-redis';
+import Redis from 'ioredis';
 
 @Injectable()
 export class AppService {
   private poseZbcPrice = ethers.parseEther('0.0000101');
   private txDeadline = 1000000;
+
+  constructor(@InjectRedis() private readonly redis: Redis) {}
 
   async price(dto: PriceDto): Promise<PriceResult> {
     const buyBoxParam: ManagerType.BuyBoxParamStruct = {
@@ -29,7 +33,15 @@ export class AppService {
 
   // who, openBoxTicketId
   async random(dto: RandomDto): Promise<RandomResult> {
-    const random = Math.round(Math.random() * 10 ** 8);
+    const key = `random:${dto.who}:${dto.openBoxTicketId}`;
+    const ran = await this.redis.get(key);
+    let random;
+    if (ran) {
+      random = parseInt(ran);
+    } else {
+      random = Math.round(Math.random() * 10 ** 8);
+      await this.redis.set(key, random.toString());
+    }
     const openBoxContinueParam: ManagerType.OpenBoxContinueParamStruct = {
       ...dto,
       random,
